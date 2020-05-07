@@ -1,4 +1,13 @@
-[TOC]
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [面向对象](#%E9%9D%A2%E5%90%91%E5%AF%B9%E8%B1%A1)
+    - [1、定义一个类](#1%E5%AE%9A%E4%B9%89%E4%B8%80%E4%B8%AA%E7%B1%BB)
+    - [2、继承](#2%E7%BB%A7%E6%89%BF)
+    - [3、多态](#3%E5%A4%9A%E6%80%81)
+    - [4、类型信息](#4%E7%B1%BB%E5%9E%8B%E4%BF%A1%E6%81%AF)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # 面向对象
 

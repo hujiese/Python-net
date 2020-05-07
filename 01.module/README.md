@@ -1,4 +1,12 @@
-[TOC]
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Python3 模块](#python3-%E6%A8%A1%E5%9D%97)
+    - [1、import 导入模块](#1import-%E5%AF%BC%E5%85%A5%E6%A8%A1%E5%9D%97)
+    - [2、from ... import... 导入模块](#2from--import-%E5%AF%BC%E5%85%A5%E6%A8%A1%E5%9D%97)
+    - [3、从 package 中导入](#3%E4%BB%8E-package-%E4%B8%AD%E5%AF%BC%E5%85%A5)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # Python3 模块
 
