@@ -12,7 +12,8 @@
       - [2、ThreadLocal](#2threadlocal)
     - [四、线程同步](#%E5%9B%9B%E7%BA%BF%E7%A8%8B%E5%90%8C%E6%AD%A5)
       - [1、互斥锁](#1%E4%BA%92%E6%96%A5%E9%94%81)
-      - [2、信号量](#2%E4%BF%A1%E5%8F%B7%E9%87%8F)
+      - [2、条件变量](#2%E6%9D%A1%E4%BB%B6%E5%8F%98%E9%87%8F)
+      - [3、信号量](#3%E4%BF%A1%E5%8F%B7%E9%87%8F)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -408,9 +409,15 @@ In Thread-A, the num is 5
 In Thread-B, the num is 20
 ```
 
-#### 2、信号量
+#### 2、条件变量
 
-可用于解决生产者消费者问题，直接上代码src/sem/sem.py：
+互斥锁是最简单的线程同步机制，Python提供的Condition对象提供了对复杂线程同步问题的支持。Condition被称为条件变量，除了提供与Lock类似的acquire和release方法外，还提供了wait和notify方法。线程首先acquire一个条件变量，然后判断一些条件。如果条件不满足则wait；如果条件满足，进行一些处理改变条件后，通过notify方法通知其他线程，其他处于wait状态的线程接到通知后会重新判断条件。不断的重复这一过程，从而解决复杂的同步问题。
+
+可以认为Condition对象维护了一个锁（Lock/RLock)和一个waiting池。线程通过acquire获得Condition对象，当调用wait方法时，线程会释放Condition内部的锁并进入blocked状态，同时在waiting池中记录这个线程。当调用notify方法时，Condition对象会从waiting池中挑选一个线程，通知其调用acquire方法尝试取到锁。
+
+**Condition对象的构造函数可以接受一个Lock/RLock对象作为参数，如果没有指定，则Condition对象会在内部自行创建一个RLock。除了notify方法外，Condition对象还提供了notifyAll方法，可以通知waiting池中的所有线程尝试acquire内部锁。**由于上述机制，处于waiting状态的线程只能通过notify方法唤醒，所以notifyAll的作用在于防止有线程永远处于沉默状态。
+
+下面是一道经典的面试题，循环打印AABBAABB....，可以使用条件变量来完成需求，代码可见src/cond/cond.py：
 
 ```python
 #!/usr/bin/python3
@@ -420,23 +427,30 @@ import random;
 import threading;
 import time;
  
-# 声明信号量
-sema=threading.Semaphore(0);# 必须写参数， 0表示当前无可以使用数
-# sema2=threading.BoundedSemaphore(1); # 使用budedsemaphore时候不允许设置初始为0，将会抛出异常
- 
-apple=0;
+# 声明条件量
+con = threading.Condition()
+flag = False;
  
 def product():#生产者
-	global apple;
-	time.sleep(3);
-	apple=random.randint(1,100);
-	print("生成苹果:",apple);
-	sema.release();#+ 1 解除消费者阻塞
-	
+	global flag
+	while True:
+		if con.acquire(): # 内部加锁
+			time.sleep(1);
+			if flag == False:
+				flag = True
+				print("AA")
+			con.notify() # 通知解除阻塞
+			con.release() # 释放锁
+
 def consumer():
-	print("等待");
-	sema.acquire();# -1 阻塞等待信号量可用
-	print("消费：",apple);
+	global flag
+	while True:
+		if con.acquire(): # 内部加锁
+			while flag == False:
+				con.wait() # 解锁，阻塞
+			print("BB")
+			flag = False
+		con.release() # 释放锁
 
 def main():
 	t1=threading.Thread(target=consumer);
@@ -447,6 +461,64 @@ def main():
 
 	t1.join();
 	t2.join();
+
+if __name__ == '__main__':
+	main()
+```
+
+打印结果如下：
+
+```
+AA
+BB
+AA
+BB
+AA
+BB
+...
+```
+
+
+
+#### 3、信号量
+
+可用于解决生产者消费者问题，直接上代码src/sem/sem.py：
+
+```python
+#!/usr/bin/python3
+
+# 信号量解决生产者消费者问题
+import random
+import threading
+import time
+ 
+# 声明信号量
+sema=threading.Semaphore(0)# 必须写参数， 0表示当前无可以使用数
+# sema2=threading.BoundedSemaphore(1); # 使用budedsemaphore时候不允许设置初始为0，将会抛出异常
+ 
+apple=0
+ 
+def product():#生产者
+	global apple
+	time.sleep(3)
+	apple=random.randint(1,100)
+	print("生成苹果:",apple)
+	sema.release();#+ 1 解除消费者阻塞
+	
+def consumer():
+	print("等待")
+	sema.acquire()# -1 阻塞等待信号量可用
+	print("消费：",apple)
+
+def main():
+	t1=threading.Thread(target=consumer)
+	t2=threading.Thread(target=product)
+
+	t1.start()
+	t2.start()
+
+	t1.join()
+	t2.join()
 
 if __name__ == '__main__':
 	main()
