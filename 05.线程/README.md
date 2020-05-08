@@ -12,6 +12,7 @@
       - [2、ThreadLocal](#2threadlocal)
     - [四、线程同步](#%E5%9B%9B%E7%BA%BF%E7%A8%8B%E5%90%8C%E6%AD%A5)
       - [1、互斥锁](#1%E4%BA%92%E6%96%A5%E9%94%81)
+      - [2、信号量](#2%E4%BF%A1%E5%8F%B7%E9%87%8F)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -405,6 +406,64 @@ if __name__ == '__main__':
 ```
 In Thread-A, the num is 5
 In Thread-B, the num is 20
+```
+
+#### 2、信号量
+
+可用于解决生产者消费者问题，直接上代码src/sem/sem.py：
+
+```python
+#!/usr/bin/python3
+
+# 信号量解决生产者消费者问题
+import random;
+import threading;
+import time;
+ 
+# 声明信号量
+sema=threading.Semaphore(0);# 必须写参数， 0表示当前无可以使用数
+# sema2=threading.BoundedSemaphore(1); # 使用budedsemaphore时候不允许设置初始为0，将会抛出异常
+ 
+apple=0;
+ 
+def product():#生产者
+	global apple;
+	time.sleep(3);
+	apple=random.randint(1,100);
+	print("生成苹果:",apple);
+	sema.release();#+ 1 解除消费者阻塞
+	
+def consumer():
+	print("等待");
+	sema.acquire();# -1 阻塞等待信号量可用
+	print("消费：",apple);
+
+def main():
+	t1=threading.Thread(target=consumer);
+	t2=threading.Thread(target=product);
+
+	t1.start();
+	t2.start();
+
+	t1.join();
+	t2.join();
+
+if __name__ == '__main__':
+	main()
+```
+
+需要注意的是：
+
+1、调用relarse(）信号量会+1，调用 acquire() 信号量会-1，这个可以理解为对于临界资源的使用，以及进入临界区的判断条件。
+
+2、boudedsemphore()：边界信号量，当调用relarse() 会+1 , 并且会检查信号量的上限情况。不允许超过上限。使用budedsemaphore时候不允许设置初始为0，将会抛出异常。所以至少设置为1 ，如consumer product 时候应该在外设置一个变量，启动时候对变量做判断。
+
+输出结果如下：
+
+```
+等待
+生成苹果: 58
+消费： 58
 ```
 
 
