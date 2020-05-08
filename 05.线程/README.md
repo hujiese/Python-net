@@ -10,6 +10,8 @@
         - [（1）传递函数](#1%E4%BC%A0%E9%80%92%E5%87%BD%E6%95%B0)
         - [（2）继承线程类](#2%E7%BB%A7%E6%89%BF%E7%BA%BF%E7%A8%8B%E7%B1%BB)
       - [2、ThreadLocal](#2threadlocal)
+    - [四、线程同步](#%E5%9B%9B%E7%BA%BF%E7%A8%8B%E5%90%8C%E6%AD%A5)
+      - [1、互斥锁](#1%E4%BA%92%E6%96%A5%E9%94%81)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -265,3 +267,145 @@ Hello, Mark - Thread-B (in Thread-B), the string is --> - Thread-A - Thread-B
 ```
 
 从结果中可以看到，local_school.student变量是每个线程独享的，而全局的str变量则先后被两个线程修改过。
+
+### 四、线程同步
+
+#### 1、互斥锁
+
+直接看案例，这是个反面案例，线程不同步所造成的 src/lock/lock.py：
+
+```python
+#!/usr/bin/python3
+
+import threading
+import time
+num = 1
+
+def add_num():
+	global num
+	num = num + 4
+	time.sleep(1)
+	print('In %s, the num is %d' % (threading.current_thread().name, num))
+
+def mul_num():
+	global num
+	num = num * 4
+	print('In %s, the num is %d' % (threading.current_thread().name, num))
+	
+def main():
+	t1 = threading.Thread(target= add_num, name='Thread-A')
+	t2 = threading.Thread(target= mul_num, name='Thread-B')
+	t1.start()
+	t2.start()
+	t1.join()
+	t2.join()
+	
+if __name__ == '__main__':
+	main()
+```
+
+上面的程序创建了两个线程，一个线程对全局变量num进行加四操作，另一个做乘四操作，值得注意的是，在add_num函数中加四之后还sleep了一段时间，用于模拟该线程在做其他事情，这时mul_num的线程抢占num资源并修改，从而导致线程不同步输出不是预期的效果，下面是输出结果：
+
+```
+In Thread-B, the num is 20
+In Thread-A, the num is 20
+```
+
+一种预期结果是，在A线程中num的值是5，而B线程中的值为20。但是在add_num中，num值变成5后就sleep了，CPU执行权被让出（当然即使不sleep该过程也可能会被其他线程打断，让出CPU执行权），mul_num线程执行，将num值乘以4，得到20。当A线程重新获取CPU执行权之后num值已经是20了。
+
+所以对于线程的共享变量，需要一种同步机制，互斥锁是一个很典型的方法，下面直接看如何使用互斥锁解决这个问题，代码可见 src/lock/lock2.py：
+
+```python
+#!/usr/bin/python3
+
+import threading
+import time
+num = 1
+lock = threading.Lock()
+
+def add_num():
+	global num
+	lock.acquire()
+	try:
+		num = num + 4
+		time.sleep(1)
+		print('In %s, the num is %d' % (threading.current_thread().name, num))
+	finally:
+		# 改完了一定要释放锁:
+		lock.release()
+
+def mul_num():
+	global num
+	lock.acquire()
+	try:
+		num = num * 4
+		print('In %s, the num is %d' % (threading.current_thread().name, num))
+	finally:
+		# 改完了一定要释放锁:
+		lock.release()
+
+def main():
+	t1 = threading.Thread(target= add_num, name='Thread-A')
+	t2 = threading.Thread(target= mul_num, name='Thread-B')
+	t1.start()
+	t2.start()
+	t1.join()
+	t2.join()
+	
+if __name__ == '__main__':
+	main()
+```
+
+在修改/获取 num值的区间使用互斥锁保护，输出结果如下：
+
+```
+In Thread-A, the num is 5
+In Thread-B, the num is 20
+```
+
+这次就正常了。
+
+但是使用互斥锁老是要获取和释放锁，获取还好，很多人总是忘记了释放，在C++11里有lock_guard和unique_lock方便使用，muduo网络库中也封装了一个MutexLockGuard类。同样地，python中可以使用with关键字来达成相同目的 src/lock/lock3.py：
+
+```python
+#!/usr/bin/python3
+
+import threading
+import time
+num = 1
+lock = threading.Lock()
+
+def add_num():
+	global num
+	with lock:
+		num = num + 4
+		time.sleep(1)
+		print('In %s, the num is %d' % (threading.current_thread().name, num))
+
+def mul_num():
+	global num
+	with lock:
+		num = num * 4
+		print('In %s, the num is %d' % (threading.current_thread().name, num))
+
+def main():
+	t1 = threading.Thread(target= add_num, name='Thread-A')
+	t2 = threading.Thread(target= mul_num, name='Thread-B')
+	t1.start()
+	t2.start()
+	t1.join()
+	t2.join()
+	
+if __name__ == '__main__':
+	main()
+```
+
+输出结果：
+
+```
+In Thread-A, the num is 5
+In Thread-B, the num is 20
+```
+
+
+
