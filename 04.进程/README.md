@@ -1,12 +1,15 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
+
 - [进程](#%E8%BF%9B%E7%A8%8B)
     - [一、fork 系统调用](#%E4%B8%80fork-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8)
     - [二、multiprocessing](#%E4%BA%8Cmultiprocessing)
     - [三、进程池](#%E4%B8%89%E8%BF%9B%E7%A8%8B%E6%B1%A0)
     - [四、subprocess](#%E5%9B%9Bsubprocess)
     - [五、进程间通信](#%E4%BA%94%E8%BF%9B%E7%A8%8B%E9%97%B4%E9%80%9A%E4%BF%A1)
+      - [1、Queue实现多个进程之间的相互通信](#1queue%E5%AE%9E%E7%8E%B0%E5%A4%9A%E4%B8%AA%E8%BF%9B%E7%A8%8B%E4%B9%8B%E9%97%B4%E7%9A%84%E7%9B%B8%E4%BA%92%E9%80%9A%E4%BF%A1)
+      - [2、PIPE 实现两个进程间的通信](#2pipe-%E5%AE%9E%E7%8E%B0%E4%B8%A4%E4%B8%AA%E8%BF%9B%E7%A8%8B%E9%97%B4%E7%9A%84%E9%80%9A%E4%BF%A1)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -170,7 +173,11 @@ rtt min/avg/max/mdev = 22.181/23.969/26.632/1.683 ms
 
 ### 五、进程间通信
 
-Python的`multiprocessing`模块包装了底层的机制，提供了`Queue`、`Pipes`等多种方式来交换数据。下面以`Queue`为例，在父进程中创建两个子进程，一个往`Queue`里写数据，一个从`Queue`里读数据，代码在src/demo2/commu.py中：
+Python的`multiprocessing`模块包装了底层的机制，提供了`Queue`、`Pipes`等多种方式来交换数据。
+
+#### 1、Queue实现多个进程之间的相互通信
+
+下面以`Queue`为例，在父进程中创建两个子进程，一个往`Queue`里写数据，一个从`Queue`里读数据，代码在src/demo2/queue.py中：
 
 ```python
 #!/usr/bin/python3
@@ -220,4 +227,99 @@ Get B from queue.
 Put C to queue...
 Get C from queue.
 ```
+
+#### 2、PIPE 实现两个进程间的通信
+
+Pipe方法返回（conn1，conn2）代表一个管道的两个端，Pipe方法有duplex参数，默认为True，即全双工模式，若为FALSE，conn1只负责接收信息，conn2负责发送。代码在src/demo2/queue.py中：
+
+```python
+#!/usr/bin/python3
+import multiprocessing
+import os,time,random
+
+#写数据进程执行的代码
+def proc_send(pipe,urls):
+	#print 'Process is write....'
+	for url in urls:
+		time.sleep(random.random())
+		print('Process is send :%s' %url)
+		pipe.send(url)
+        
+
+#读数据进程的代码
+def proc_recv(pipe):
+    while True:
+        print('Process rev:%s' %pipe.recv())
+
+if __name__ == '__main__':
+    #父进程创建pipe，并传给各个子进程，duplex设置为True，全双工
+    pipe = multiprocessing.Pipe(duplex=True)
+    p1 = multiprocessing.Process(target=proc_send,args=(pipe[0],['url_'+str(i) for i in range(5) ]))
+    p2 = multiprocessing.Process(target=proc_recv,args=(pipe[1],))
+    #启动子进程，写入
+    p1.start()
+    p2.start()
+
+    p1.join()
+    p2.terminate()
+```
+
+测试结果如下：
+
+```	
+Process is send :url_0
+Process rev:url_0
+Process is send :url_1
+Process rev:url_1
+Process is send :url_2
+Process rev:url_2
+Process is send :url_3
+Process rev:url_3
+Process is send :url_4
+Process rev:url_4
+```
+
+当前状态下的pipe是全双工的，pipe[0]和pipe[1]都能读写。如果修改代码：
+
+```python
+ pipe = multiprocessing.Pipe(duplex=False)
+```
+
+设置duplex为False，那么pipe[0]只能读，pipe[1]只能写，前面的程序就会报错，报错内容如下：
+
+```python
+Process Process-2:
+Traceback (most recent call last):
+  File "/usr/lib/python3.4/multiprocessing/process.py", line 254, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.4/multiprocessing/process.py", line 93, in run
+    self._target(*self._args, **self._kwargs)
+  File "./pipe.py", line 17, in proc_recv
+    print('Process rev:%s' %pipe.recv())
+  File "/usr/lib/python3.4/multiprocessing/connection.py", line 249, in recv
+    self._check_readable()
+  File "/usr/lib/python3.4/multiprocessing/connection.py", line 140, in _check_readable
+    raise OSError("connection is write-only")
+OSError: connection is write-only
+Process is send :url_0
+Process Process-1:
+Traceback (most recent call last):
+  File "/usr/lib/python3.4/multiprocessing/process.py", line 254, in _bootstrap
+    self.run()
+  File "/usr/lib/python3.4/multiprocessing/process.py", line 93, in run
+    self._target(*self._args, **self._kwargs)
+  File "./pipe.py", line 11, in proc_send
+    pipe.send(url)
+  File "/usr/lib/python3.4/multiprocessing/connection.py", line 205, in send
+    self._check_writable()
+  File "/usr/lib/python3.4/multiprocessing/connection.py", line 144, in _check_writable
+    raise OSError("connection is read-only")
+OSError: connection is read-only
+```
+
+错误非常明显：
+
+`OSError: connection is write-only`
+
+`OSError: connection is read-only`
 
