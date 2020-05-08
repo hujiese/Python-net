@@ -1,6 +1,7 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
+
 - [线程](#%E7%BA%BF%E7%A8%8B)
     - [一、全局解释器锁](#%E4%B8%80%E5%85%A8%E5%B1%80%E8%A7%A3%E9%87%8A%E5%99%A8%E9%94%81)
     - [二、_thread](#%E4%BA%8C_thread)
@@ -8,6 +9,7 @@
       - [1、创建线程](#1%E5%88%9B%E5%BB%BA%E7%BA%BF%E7%A8%8B)
         - [（1）传递函数](#1%E4%BC%A0%E9%80%92%E5%87%BD%E6%95%B0)
         - [（2）继承线程类](#2%E7%BB%A7%E6%89%BF%E7%BA%BF%E7%A8%8B%E7%B1%BB)
+      - [2、ThreadLocal](#2threadlocal)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -214,3 +216,52 @@ loop t2 done at: Fri May  8 16:44:38 2020
 退出主线程
 ```
 
+#### 2、ThreadLocal
+
+在多线程环境下，每个线程都有自己的数据，这些数据往往都不相同，都是局部的数据。对于全局的数据，每个线程都能访问和修改，这就不安全了，ThreadLocal这种方法可以让让每个线程拥有一份全局定义的数据，这份数据每个线程都是私有的，但外部看却是全局的。
+
+在Linux中对于POD数据，可以采用`__thread`修饰，对于class类型数据，可以使用`pthread_setspecific`和`pthread_getspecific`两个函数结合`pthread_key_t` 变量来通过类似于key-value方法设置/获取线程私有数据。
+
+当然，Python中也提供类似的功能，测试代码可见src/threading/threadlocal.py，代码如下所示：
+
+```python
+#!/usr/bin/python3
+
+import threading
+    
+# 创建全局ThreadLocal对象:
+local_school = threading.local()
+str = '-->'
+def process_student():
+	global str
+	# 获取当前线程关联的student:
+	std = local_school.student
+	std = std + ' - ' + threading.current_thread().name
+	str = str + ' - ' + threading.current_thread().name
+	print('Hello, %s (in %s), the string is %s' % (std, threading.current_thread().name, str))
+
+def process_thread(name):
+	# 绑定ThreadLocal的student:
+	local_school.student = name
+	process_student()
+
+def main():
+	t1 = threading.Thread(target= process_thread, args=('Jack',), name='Thread-A')
+	t2 = threading.Thread(target= process_thread, args=('Mark',), name='Thread-B')
+	t1.start()
+	t2.start()
+	t1.join()
+	t2.join()
+	
+if __name__ == '__main__':
+	main()
+```
+
+这里通过 `local_school = threading.local()`来定义一个ThreadLocal变量，为了对比，这里也定义了str变量。测试结果如下：
+
+```
+Hello, Jack - Thread-A (in Thread-A), the string is --> - Thread-A
+Hello, Mark - Thread-B (in Thread-B), the string is --> - Thread-A - Thread-B
+```
+
+从结果中可以看到，local_school.student变量是每个线程独享的，而全局的str变量则先后被两个线程修改过。
