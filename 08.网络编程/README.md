@@ -8,6 +8,7 @@
       - [2、多进程回射服务器](#2%E5%A4%9A%E8%BF%9B%E7%A8%8B%E5%9B%9E%E5%B0%84%E6%9C%8D%E5%8A%A1%E5%99%A8)
       - [3、进程池回射服务器](#3%E8%BF%9B%E7%A8%8B%E6%B1%A0%E5%9B%9E%E5%B0%84%E6%9C%8D%E5%8A%A1%E5%99%A8)
       - [4、多线程回射服务器](#4%E5%A4%9A%E7%BA%BF%E7%A8%8B%E5%9B%9E%E5%B0%84%E6%9C%8D%E5%8A%A1%E5%99%A8)
+    - [二、UDP编程](#%E4%BA%8Cudp%E7%BC%96%E7%A8%8B)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -338,3 +339,51 @@ if __name__ == "__main__":
 测试结果如下：
 
 ![](./img/multhread.jpg)
+
+### 二、UDP编程
+
+这块就简单介绍下，代码在src/UDP下。
+
+服务端：
+
+```python
+#!/usr/bin/env python3
+
+import socket
+
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# 绑定端口:
+s.bind(('127.0.0.1', 9999))
+
+print('Bind UDP on 9999...')
+
+while True:
+    # 接收数据:
+    data, addr = s.recvfrom(1024)
+    print('Received from %s:%s.' % addr)
+    reply = 'Hello, %s!' % data.decode('utf-8')
+    s.sendto(reply.encode('utf-8'), addr)
+```
+
+客户端：
+
+```python
+#!/usr/bin/env python3
+
+import socket
+
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+for data in [b'Michael', b'Jack', b'Tom']:
+    # 发送数据:
+    s.sendto(data, ('127.0.0.1', 9999))
+    # 接收数据:
+    print(s.recv(1024).decode('utf-8'))
+
+s.close()
+```
+
+效果如下：
+
+![](./img/udp.jpg)
