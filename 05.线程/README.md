@@ -14,6 +14,7 @@
       - [1、互斥锁](#1%E4%BA%92%E6%96%A5%E9%94%81)
       - [2、条件变量](#2%E6%9D%A1%E4%BB%B6%E5%8F%98%E9%87%8F)
       - [3、信号量](#3%E4%BF%A1%E5%8F%B7%E9%87%8F)
+      - [4、Queue](#4queue)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -478,8 +479,6 @@ BB
 ...
 ```
 
-
-
 #### 3、信号量
 
 可用于解决生产者消费者问题，直接上代码src/sem/sem.py：
@@ -536,6 +535,86 @@ if __name__ == '__main__':
 等待
 生成苹果: 58
 消费： 58
+```
+
+#### 4、Queue
+
+直接上代码src/queue/msg.py：
+
+```python
+#!/usr/bin/python3
+
+import threading
+import queue
+import time
+
+exitFlag = False
+
+lock = threading.Lock()
+workQueue = queue.Queue(10)
+
+def customer():
+	global exitFlag
+	while not exitFlag:
+		#with lock:
+		if not workQueue.empty():
+			data = workQueue.get()
+			print(threading.current_thread().name + ' get ' + data)
+			time.sleep(1)
+	print('customer ' + threading.current_thread().name + ' end ... ')
+
+def product(nums):
+	global exitFlag
+	while not exitFlag:
+		with lock:
+			if workQueue.empty():
+				for i in range(nums):
+					workQueue.put('product' + str(i))
+	print('product end ... ')
+			
+
+def main():
+	global exitFlag
+	threads = []
+	# 生产者线程，一次性向队列生产4个消息
+	prod = threading.Thread(target= product, args= (4,), name='product')
+	prod.start()
+	# 创建三个消费者线程
+	for i in range(3):
+		t = threading.Thread(target= customer, name='Thread-' + str(i))
+		threads.append(t)
+	# 启动消费者线程
+	for t in threads:
+		t.start()
+
+	# 等待队列清空
+	while not workQueue.empty():
+		pass
+	# 设置退出flag
+	exitFlag = True
+	
+	prod.join()
+	for t in threads:
+		t.join()
+	
+	print ("退出主线程")
+	
+if __name__ == '__main__':
+	main()
+```
+
+程序创建了一个生产者线程和三个消费者线程，生产者线程一次性创建4个消息，消费者线程获取消息。其中一个输出结果如下：
+
+```
+Thread-0 get product0
+Thread-1 get product1
+Thread-2 get product2
+Thread-0 get product3
+product end ... 
+customer Thread-1 end ... 
+customer Thread-2 end ... 
+customer Thread-0 end ... 
+退出主线程
 ```
 
 
